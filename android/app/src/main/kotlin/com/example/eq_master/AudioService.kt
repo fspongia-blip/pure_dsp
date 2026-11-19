@@ -19,24 +19,34 @@ class AudioService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Creamos la notificación que hace a la app "Inmortal"
+        // Si Android intenta recrear el servicio en segundo plano con intent null, lo detenemos
+        if (intent == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("PURE DSP CONTROL")
             .setContentText("Mejorando el audio en segundo plano")
-            .setSmallIcon(android.R.drawable.ic_media_play) // Icono nativo de Android
+            .setSmallIcon(android.R.drawable.ic_media_play)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true) // Evita que el usuario la borre deslizando
+            .setOngoing(true)
             .build()
 
-        // Le decimos a Android: "Soy un servicio vital, no me mates"
-        startForeground(1, notification)
+        // Evita cierres si Android bloquea el primer plano por estado de batería, fondo o permisos
+        try {
+            startForeground(1, notification)
+        } catch (e: Exception) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
-        // START_STICKY hace que si el sistema colapsa y cierra la app, la vuelva a abrir automáticamente
-        return START_STICKY
+        // START_NOT_STICKY evita que Android 12+ reinicie el servicio en segundo plano sin permiso
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? {
-        return null // No necesitamos comunicación directa por Binder
+        return null
     }
 
     private fun createNotificationChannel() {
@@ -44,7 +54,7 @@ class AudioService : Service() {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
                 "Ecualizador Background Service",
-                NotificationManager.IMPORTANCE_LOW // Low para que no haga ruido al aparecer
+                NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(serviceChannel)
@@ -53,7 +63,6 @@ class AudioService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Si el usuario fuerza la detención de la app desde los ajustes, ahí sí liberamos el chip
         MainActivity.equalizer?.release()
         MainActivity.equalizer = null
     }
